@@ -1,11 +1,12 @@
-import { dbService } from 'fbase';
+import { dbService, storageService } from 'fbase';
+import {v4 as uuidv4} from "uuid";
 import React, { useEffect, useState } from 'react';
 import Nweet from "../components/Nweet";
 
 const Home = ({userObj}) => {
     const [nweet, setNweet] = useState("");
     const [nweets, setNweets] = useState([]);
-    const [attachment, setAttachment] = useState();
+    const [attachment, setAttachment] = useState("");
     useEffect(()=>{
         dbService.collection("nweets").onSnapshot(snapshot => {
             const nweetArray = snapshot.docs.map(doc => ({id:doc.id, ...doc.data()}));
@@ -14,12 +15,21 @@ const Home = ({userObj}) => {
     }, []);
     const onSubmit = async (e) => {
         e.preventDefault();
-        await dbService.collection("nweets").add({
+        let attachmentUrl = "";
+        if(attachment){
+            const attachmentRef = storageService.ref().child(`${userObj.uid}/${uuidv4()}`);
+            const response = await attachmentRef.putString(attachment, "data_url");
+            attachmentUrl = await response.ref.getDownloadURL();
+        }
+        const nweetObj = {
             text: nweet,
             createAt: Date.now(),
-            creatorId: userObj.uid
-        });
+            creatorId: userObj.uid,
+            attachmentUrl
+        };
+        await dbService.collection("nweets").add(nweetObj);
         setNweet("");
+        setAttachment("");
     };
     const onChange = (e) => {
         const {target:{value}} = e;
@@ -35,7 +45,7 @@ const Home = ({userObj}) => {
         }
         reader.readAsDataURL(theFile);
     };
-    const onClearAttachment = () => setAttachment(null);
+    const onClearAttachment = () => setAttachment("");
     return(
         <div>
             <form onSubmit={onSubmit}>
